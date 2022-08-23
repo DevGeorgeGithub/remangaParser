@@ -9,23 +9,23 @@ import (
 	"golang.org/x/net/html/charset"
 )
 
-var body []byte
-var textJson map[string]interface{}
+var (
+	body []byte
+	textJson map[string]interface{}
+	
+	defaultUrl = "https://api.remanga.org/api/search/catalog/?ordering=-rating&page=1&count=30"
+	dirs string
+	rus_names string
+	chapter string
+	url string
+	description string
+	Images string
+	chaptersUrl string
+	numberChapters string
 
-var dirs string
-var rus_names string
-var chapter string
-var chapters string
-var url string
-var description string
-var Images string
-var chaptersUrl string
-var chaptersDescription string
-var defaultUrl = "https://api.remanga.org/api/search/catalog/?ordering=-rating&page=1&count=30"
-
-var api []string
-var arrayDirs []string
-var arrayChapter []string
+	api []string
+	arrayDirs []string
+)
 
 func main() {
 
@@ -62,12 +62,17 @@ func valuesJson() {
 
 	json.Unmarshal(body, &textJson)
 
-	if url == defaultUrl {
+	if url == defaultUrl || url == chaptersUrl{
 		for _, item := range textJson["content"].([]interface{}) {
 			dirs += fmt.Sprintf("%v", item.(map[string]interface{})["dir"])
 			api = append(api, "https://api.remanga.org/api/titles/"+dirs)
 			arrayDirs = append(arrayDirs, "https://remanga.org/manga/"+dirs)
-			rus_names += fmt.Sprintf("%v", item.(map[string]interface{})["rus_name"]) + ","
+	
+			if url == defaultUrl {
+				rus_names += fmt.Sprintf("%v", item.(map[string]interface{})["rus_name"]) + ","
+			}else {
+				numberChapters += "Глава " + fmt.Sprintf("%v", item.(map[string]interface{})["chapter"]) + ","
+			}
 		}
 	}
 
@@ -105,13 +110,12 @@ func createJson() {
 
 	f.WriteString("{\"Name\":" + "\"" + rus_names + "\"" + ",")
 	f.WriteString("\"Description\":" + "\"" + description + "\"" + ",")
-	f.WriteString("\"Chapters\":" + "\"" + chapters + "\"" + ",")
+	f.WriteString("\"Chapters\":" + "\"" + numberChapters + "\"" + ",")
 	f.WriteString("\"Images\":" + "\"" + Images + "\"}")
 	f.Close()
-	// fmt.Println(chaptersId)
-	if url != chaptersUrl && chapters == "" {
+
+	if url != chaptersUrl  {
 		defer main()
 	}
 }
 
-// Узнать тип chaptersUrl, пом усл valuesJson, получить  chapter: "179", name: "Конец."
