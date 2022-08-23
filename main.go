@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"os"
 	"strings"
-
 	"golang.org/x/net/html/charset"
 )
 
@@ -15,26 +15,23 @@ var (
 	body     []byte
 	textJson map[string]interface{}
 
-	defaultUrl     = "https://api.remanga.org/api/search/catalog/?ordering=-rating&page=1&count=30"
+	mainPage     = "https://api.remanga.org/api/search/catalog/?ordering=-rating&page=1&count=30"
 	dirs           string
 	rus_names      string
-	chapter        string
+	urlImagesTitle string
 	url            string
 	description    string
 	Images         string
-	chaptersUrl    string
+	urlChapters    string
 	numberChapters string
-	pageNumber     = 1
-	chaptersUrlId  string
+	numberPageChapters float64 = 1
+	urlChaptersId string
 
-	api       []string
+	arrayApiTitles []string
 	arrayDirs []string
 )
 
-var stopNumberChapters = !strings.Contains(numberChapters, "Глава 0") 
-
 func main() {
-
 	urlGet()
 	parser()
 	valuesJson()
@@ -42,18 +39,16 @@ func main() {
 }
 
 func urlGet() {
-
-
 	if url == "" {
-		url = defaultUrl
-	} else if url == defaultUrl {
-		url = api[0]
-	} else if url == api[0] {
-		url = chapter
-	} else if url == chapter {
-		url = chaptersUrl
-	} else if url != chaptersUrl && stopNumberChapters {
-		url = chaptersUrl
+		url = mainPage
+	} else if url == mainPage {
+		url = arrayApiTitles[0]
+	} else if url == arrayApiTitles[0] {
+		url = urlImagesTitle
+	} else if url == urlImagesTitle {
+		url = urlChapters
+	} else if url != urlChapters {
+		url = urlChapters
 	}
 
 }
@@ -69,26 +64,46 @@ func parser() {
 
 func valuesJson() {
 
+// var ab = func() {
+// 		fmt.Println("ha")
+// 	}
+
+// func() {
+// 		fmt.Println("ha")
+// 	}()
+
+
+
 	json.Unmarshal(body, &textJson)
 
-	if url == defaultUrl || url == chaptersUrl {
+//Frontend запрос получаю dir api name numberchapters
+	if url == mainPage || url == urlChapters {
 		for _, item := range textJson["content"].([]interface{}) {
 			dirs += fmt.Sprintf("%v", item.(map[string]interface{})["dir"])
-			api = append(api, "https://api.remanga.org/api/titles/"+dirs)
+			arrayApiTitles = append(arrayApiTitles, "https://api.remanga.org/api/titles/"+dirs)
 			arrayDirs = append(arrayDirs, "https://remanga.org/manga/"+dirs)
-
-			if url == defaultUrl {
+			if url == mainPage {
 				rus_names += fmt.Sprintf("%v", item.(map[string]interface{})["rus_name"]) + ","
 			} else {
 				numberChapters += "Глава " + fmt.Sprintf("%v", item.(map[string]interface{})["chapter"]) + ","
 			}
 		}
-		if url == chaptersUrl && stopNumberChapters {
-			pageNumber += 1
+		// Перелистывание страниц с главами
+		if url == urlChapters {
+			var i int64
+			var lastPageNumber float64
+
+			fmt.Sscanf(numberChapters[11:strings.Index(numberChapters, ",")], "%d", &i)
+			lastPageNumber = math.Round(float64(i) / 60)
+			if numberPageChapters < lastPageNumber {
+				numberPageChapters++
+			}
 		}
 	}
 
-	if url == api[0] || url == chapter {
+//Backend запрос получаю description urlChaptersId urlImagesTitle Images
+
+	if url == arrayApiTitles[0] || url == urlImagesTitle {
 		mapJson := textJson["content"].(map[string]interface{})
 		for key, value := range mapJson {
 			switch key {
@@ -96,12 +111,12 @@ func valuesJson() {
 				description += fmt.Sprintf("%v", value)
 			case "branches":
 				for _, item := range value.([]interface{}) {
-					chaptersUrlId = fmt.Sprintf("%v", item.(map[string]interface{})["id"])
+					urlChaptersId = fmt.Sprintf("%v", item.(map[string]interface{})["id"])
 				}
 			case "first_chapter":
 				for key, value2 := range value.(map[string]interface{}) {
 					if key == "id" {
-						chapter = "https://api.remanga.org/api/titles/chapters/" + fmt.Sprintf("%v", value2)
+						urlImagesTitle = "https://api.remanga.org/api/titles/chapters/" + fmt.Sprintf("%v", value2)
 					}
 				}
 			case "pages":
@@ -111,7 +126,8 @@ func valuesJson() {
 			}
 		}
 	}
-	chaptersUrl = "https://api.remanga.org/api/titles/chapters/?branch_id=" + chaptersUrlId + "&count=60&ordering=-index&page=" + fmt.Sprint(pageNumber) + "&user_data=1"
+	// brenchChapters
+	urlChapters = "https://api.remanga.org/api/titles/chapters/?branch_id=" + urlChaptersId + "&count=60&ordering=-index&page=" + fmt.Sprint(numberPageChapters) + "&user_data=1"
 }
 
 func createJson() {
@@ -121,12 +137,13 @@ func createJson() {
 
 	f, _ := os.OpenFile("parserData.json", os.O_CREATE|os.O_RDWR, 0777)
 
+	// Сделать структуру или фун
 	f.WriteString("{\"Name\":" + "\"" + rus_names + "\"" + ",")
 	f.WriteString("\"Description\":" + "\"" + description + "\"" + ",")
 	f.WriteString("\"Chapters\":" + "\"" + numberChapters + "\"" + ",")
 	f.WriteString("\"Images\":" + "\"" + Images + "\"}")
 	f.Close()
-	if  !strings.Contains(numberChapters, "Глава 0") {
+	if url != urlChapters {
 		defer main()
 	}
 }
