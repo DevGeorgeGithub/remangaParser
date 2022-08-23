@@ -3,11 +3,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"golang.org/x/net/html/charset"
 	"io"
 	"net/http"
 	"os"
-	"strings"
+	"golang.org/x/net/html/charset"
 )
 
 var body []byte
@@ -16,99 +15,103 @@ var textJson map[string]interface{}
 var dirs string
 var rus_names string
 var chapter string
+var chapters string
 var url string
-var api string
-var siteDirs string
 var description string
+var Images string
+var chaptersUrl string
+var chaptersDescription string
+var defaultUrl = "https://api.remanga.org/api/search/catalog/?ordering=-rating&page=1&count=30"
 
+var api []string
 var arrayDirs []string
-var arrayRus_names []string
-var arraySiteDirs []string
-var arrayApi []string
+var arrayChapter []string
 
 func main() {
-	check()
+
+	urlGet()
 	parser()
 	valuesJson()
 	createJson()
 }
 
-func check() {
+func urlGet() {
 
-	if len(arrayRus_names) == 34 {
-		url = arrayApi[0]
-	} else {
-		url = "https://api.remanga.org/api/search/catalog/?ordering=-rating&page=1&count=30"
+	if url == "" {
+		url = defaultUrl
+	} else if url == defaultUrl {
+		url = api[0]
+	} else if url == api[0] {
+		url = chapter
+	}else if url == chapter {
+		url = chaptersUrl
 	}
 }
 
 func parser() {
-	// fmt.Println(url)
 
-	resp, err := http.Get(url)
-	if err != nil {
-		println(err)
-	}
+	fmt.Println(url)
+	resp, _ := http.Get(url)
 	defer resp.Body.Close()
 
 	utf8, _ := charset.NewReader(resp.Body, resp.Header.Get("Content-Type"))
-
 	body, _ = io.ReadAll(utf8)
-
 }
 
 func valuesJson() {
 
 	json.Unmarshal(body, &textJson)
 
-	if url != "https://api.remanga.org/api/titles/solo-leveling" {
-
+	if url == defaultUrl {
 		for _, item := range textJson["content"].([]interface{}) {
-			dirs += fmt.Sprintf("%v", item.(map[string]interface{})["dir"]) + ","
+			dirs += fmt.Sprintf("%v", item.(map[string]interface{})["dir"])
+			api = append(api, "https://api.remanga.org/api/titles/"+dirs)
+			arrayDirs = append(arrayDirs, "https://remanga.org/manga/"+dirs)
 			rus_names += fmt.Sprintf("%v", item.(map[string]interface{})["rus_name"]) + ","
 		}
 	}
-	arrayDirs = strings.Split(dirs, ",")
-	arrayRus_names = strings.Split(rus_names, ",")
-	if url == "https://api.remanga.org/api/titles/solo-leveling" {
 
+	if url == api[0] || url == chapter {
 		mapJson := textJson["content"].(map[string]interface{})
 		for key, value := range mapJson {
 			switch key {
-			case "description":
-				description += fmt.Sprintf("%v", value)
-			case "first_chapter":
-				for key, value2 := range value.(map[string]interface{}) {
-				    if key == "id" {
-				        chapter = fmt.Sprintf("%v", value2)
-				    }
-				}
+				case "description":
+					description += fmt.Sprintf("%v", value)
+				case "branches":
+					for _, item := range value.([]interface{}) {
+						chaptersUrl = "https://api.remanga.org/api/titles/chapters/?branch_id=" + fmt.Sprintf("%v", item.(map[string]interface{})["id"]) + "&count=60&ordering=-index&page=1&user_data=1"
+					}
+				case "first_chapter":
+					for key, value2 := range value.(map[string]interface{}) {
+						if key == "id" {
+							chapter = "https://api.remanga.org/api/titles/chapters/" + fmt.Sprintf("%v", value2)
+						}
+					}
+				case "pages":
+					for _, item := range value.([]interface{}) {
+						Images += fmt.Sprintf("%v", item.(map[string]interface{})["link"]) + ", "
+					}
 			}
 		}
 	}
-	chapter = "https://remanga.org/manga/" + arrayDirs[0] + "/" + "ch" + chapter
-    fmt.Println(chapter)
-	for i := range arrayDirs {
-		siteDirs += "https://remanga.org/manga/" + arrayDirs[i] + ","
-		api += "https://api.remanga.org/api/titles/" + arrayDirs[i] + ","
-	}
-
-	arraySiteDirs = strings.Split(siteDirs, ",")
-	arrayApi = strings.Split(api, ",")
-
 }
 
 func createJson() {
+
 	parserData, _ := os.Create("parserData.json")
 	parserData.Close()
 
 	f, _ := os.OpenFile("parserData.json", os.O_CREATE|os.O_RDWR, 0777)
 
-	f.WriteString("{\"Name\":" + "\"" + rus_names + "\" ")
-	f.WriteString("\"Description\":" + "\"" + description + "\"")
-	// f.WriteString("\"Images\":" + "\"" + rus_names + "\"}")
+	f.WriteString("{\"Name\":" + "\"" + rus_names + "\"" + ",")
+	f.WriteString("\"Description\":" + "\"" + description + "\"" + ",")
+	f.WriteString("\"Chapters\":" + "\"" + chapters + "\"" + ",")
+	f.WriteString("\"Images\":" + "\"" + Images + "\"}")
 	f.Close()
-	if url != arrayApi[0] {
+	// fmt.Println(chaptersId)
+	if url != chaptersUrl && chapters == "" {
 		defer main()
 	}
 }
+
+// Узнать тип chaptersUrl, пом усл valuesJson, получить  chapter: "179", name: "Конец."
