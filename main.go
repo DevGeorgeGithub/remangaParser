@@ -16,159 +16,140 @@ var (
 	body     []byte
 	textJson map[string]interface{}
 
-	mainPage           = "https://api.remanga.org/api/search/catalog/?ordering=-rating&page=1&count=30" 
-	rus_names, urlImagesTitle, url, description, Images, urlChapters, brenchId, numberChapters string
-	numberPageChapters float64 = 1
-	lastPageNumber     float64
-	counterDescription int
-	arrayIdChapters, arrayApiTitles	[]string
+	mainPage                                                                  = "https://api.remanga.org/api/search/catalog/?ordering=-rating&page=1&count=30"
+	rus_names, url, description, Images, urlChapters, numberChapters          string
+	numberPageChapters                                                        float64 = 1
+	lastPageNumber                                                            float64
+	counterDescription, countPagesImages, countRepeatGetImages, countBrenchId int
+	arrayIdChapters, arrayApiTitles, arrayBrenchId                            []string
 )
 
 func main() {
 	// мен mainpage defer main()
-	// for countRepetitions := 1; countRepetitions < 32; countRepetitions++ {
 	for countRepetitions := 1; countRepetitions < 7; countRepetitions++ {
 		urlGet()
-		parser()
-		valuesJson()
-		createJson()
-		fmt.Println(url)
 	}
 }
 
 func urlGet() {
 	switch url {
 	case "":
-		url = mainPage
+		getMainPage()
 	case mainPage:
 		changeUrlApiTitles()
-	case changeUrlApiTitles():
+	case arrayApiTitles[counterDescription]:
 		changeUrlChapters()
-	case changeUrlChapters():
+	case urlChapters:
 		getImages()
+		// case arrayIdChapters[countRepeatGetImages]:
+		// 	url = ""
 	}
 }
 
-func getImages() string { // разбить на функ без повт
-	url = arrayIdChapters[0]
+func getMainPage() {
+	url = mainPage
 	parser()
-	json.Unmarshal(body, &textJson)
+	for _, item := range textJson["content"].([]interface{}) {
+		rus_names += fmt.Sprintf("%v", item.(map[string]interface{})["rus_name"]) + ","
+		arrayApiTitles = append(arrayApiTitles, "https://api.remanga.org/api/titles/"+fmt.Sprintf("%v", item.(map[string]interface{})["dir"]))
+	}
+	createJson()
+}
+
+func getImages() {
+	// if countRepeatGetImages < len(arrayIdChapters) && Images != "" {
+	// 	countRepeatGetImages++
+	// }
+	url = arrayIdChapters[countRepeatGetImages]
+	parser()
 
 	for key, value := range textJson["content"].(map[string]interface{}) {
 		switch key {
 		case "pages":
 			for key, value := range value.([]interface{}) {
 				switch key {
-				// 0-6 for
-				case 0:
+				case countPagesImages:
+					countPagesImages++
 					for _, value := range value.([]interface{}) {
-						Images += fmt.Sprintf("%v",value.(map[string]interface{})["link"])
+						Images += fmt.Sprintf("%v", value.(map[string]interface{})["link"]) + ","
 					}
 				}
 			}
 		}
 	}
-	return url
-}
-
-// textJson["content"].(map[string]interface{}) switch deepJson   textJson["content"].([]interface{}) переменные getJsonValues
-// func getJsonValues() 
-
-
-
-	// for key, value := range textJson["content"].(map[string]interface{}) {
-	// 	switch key {
-	// 	case "pages":
-	// 		for key, value := range value.([]interface{}) {
-	// 			switch key {
-	// 			// 0-6 for
-	// 			case 0:
-	// 				for _, value := range value.([]interface{}) {
-	// 					Images += fmt.Sprintf("%v",value.(map[string]interface{})["link"])
-	// 				}
-	// 			}
-	// 		}
-	// 	}
-	// }
-// }
-
-
-
-func changeUrlApiTitles() string {
-	// if description != "" && counterDescription != 29{
-		// counterDescription++
-	// }
-	url = arrayApiTitles[counterDescription]
-	return url
-}
-
-func changeUrlChapters() string{
-	if url == urlChapters {
-		changePageChapters()
+	createJson()
+	countPagesImages = 0
+	if countRepeatGetImages < len(arrayIdChapters) { // index out of range [59] with length 59
+		countRepeatGetImages++
+		defer getImages()
 	}
-	urlChapters = "https://api.remanga.org/api/titles/chapters/?branch_id=" + brenchId + "&count=60&ordering=-index&page=" + fmt.Sprint(numberPageChapters) + "&user_data=1"
-	url = urlChapters
-	return url
 }
 
+func changeUrlApiTitles() {
+	url = arrayApiTitles[counterDescription]
+	parser()
+	Backend()
+	createJson()
+	if counterDescription != 29 {
+		counterDescription++
+		defer changeUrlApiTitles()
+	}
+}
+
+func changeUrlChapters() {
+	urlChapters = "https://api.remanga.org/api/titles/chapters/?branch_id=" + arrayBrenchId[countBrenchId] + "&count=60&ordering=-index&page=" + fmt.Sprint(numberPageChapters) + "&user_data=1"
+	url = urlChapters
+	parser()
+	doUrlChapter()
+	changePageChapters()
+	createJson()
+
+	if numberPageChapters != lastPageNumber {
+		defer changeUrlChapters()
+	} else {
+		if countBrenchId != 31 {
+			countBrenchId++
+			numberPageChapters = 0
+			changeUrlChapters()
+		}
+	}
+}
 
 func parser() {
+	// fmt.Println(url)
 	resp, _ := http.Get(url)
 	defer resp.Body.Close()
 
 	utf8, _ := charset.NewReader(resp.Body, resp.Header.Get("Content-Type"))
 	body, _ = io.ReadAll(utf8)
-}
 
-func valuesJson() {
 	json.Unmarshal(body, &textJson)
-	Frontend()
-	Backend()
-}
-
-func Frontend() {
-	doUrlMainPage()
-	doUrlChapter()
-}
-
-func doUrlMainPage() {
-	if url == mainPage {
-		for _, item := range textJson["content"].([]interface{}) {
-			rus_names += fmt.Sprintf("%v", item.(map[string]interface{})["rus_name"]) + ","
-			arrayApiTitles = append(arrayApiTitles, "https://api.remanga.org/api/titles/"+fmt.Sprintf("%v", item.(map[string]interface{})["dir"]))
-		}
-	}
 }
 
 func doUrlChapter() {
-	if url == urlChapters {
-		for _, item := range textJson["content"].([]interface{}) {
-			numberChapters += "Глава " + fmt.Sprintf("%v", item.(map[string]interface{})["chapter"]) + ","
-			arrayIdChapters = append(arrayIdChapters, "https://api.remanga.org/api/titles/chapters/"+fmt.Sprintf("%v", item.(map[string]interface{})["id"]))
-		}
-		changePageChapters()
+	for _, item := range textJson["content"].([]interface{}) {
+		numberChapters += "Глава " + fmt.Sprintf("%v", item.(map[string]interface{})["chapter"]) + ","
+		arrayIdChapters = append(arrayIdChapters, "https://api.remanga.org/api/titles/chapters/"+fmt.Sprintf("%v", item.(map[string]interface{})["id"]))
 	}
 }
 
 func changePageChapters() {
 	var i int64
 	fmt.Sscanf(numberChapters[11:strings.Index(numberChapters, ",")], "%d", &i)
-	lastPageNumber = math.Round(float64(i) / 60)
+	lastPageNumber = math.Round(float64(i)/60) + 1
 	if numberPageChapters < lastPageNumber {
 		numberPageChapters++
 	}
 }
 
 func Backend() {
-	if url == arrayApiTitles[counterDescription] || url == urlImagesTitle {
-		for key, value := range textJson["content"].(map[string]interface{}) {
-			switch key {
-			case "description":
-				description += fmt.Sprintf("%v", value)
-			case "branches":
-				for _, item := range value.([]interface{}) {
-					brenchId = fmt.Sprintf("%v", item.(map[string]interface{})["id"])
-				}
+	for key, value := range textJson["content"].(map[string]interface{}) {
+		switch key {
+		case "description":
+			description += fmt.Sprintf("%v", value)
+		case "branches":
+			for _, item := range value.([]interface{}) {
+				arrayBrenchId = append(arrayBrenchId, fmt.Sprintf("%v", item.(map[string]interface{})["id"]))
 			}
 		}
 	}
@@ -187,4 +168,3 @@ func createJson() {
 	f.WriteString("\"Images\":" + "\"" + Images + "\"}")
 	f.Close()
 }
-
