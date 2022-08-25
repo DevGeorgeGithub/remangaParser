@@ -14,24 +14,25 @@ import (
 
 var (
 	body     []byte
-	textJson map[string]interface{}
-
-	mainPage                                                                  = "https://api.remanga.org/api/search/catalog/?ordering=-rating&page=1&count=30"
-	rus_names, url, description, Images, urlChapters, numberChapters          string
+	textJson map[string]interface{}                                                                  
+	rus_names, url, description, Images, urlChapters, numberChapters, mainPage string
 	numberPageChapters                                                        float64 = 1
 	lastPageNumber                                                            float64
 	counterDescription, countPagesImages, countRepeatGetImages, countBrenchId int
 	arrayIdChapters, arrayApiTitles, arrayBrenchId                            []string
+	numberPage                                                                = 1
+	totalPages                                                                = 2
 )
 
 func main() {
-	// мен mainpage defer main()
 	for countRepetitions := 1; countRepetitions < 7; countRepetitions++ {
 		urlGet()
 	}
 }
 
 func urlGet() {
+	// wg := sync.WaitGroup{}
+  // wg.Add(3)
 	switch url {
 	case "":
 		getMainPage()
@@ -41,50 +42,29 @@ func urlGet() {
 		changeUrlChapters()
 	case urlChapters:
 		getImages()
-		// case arrayIdChapters[countRepeatGetImages]:
-		// 	url = ""
 	}
 }
 
 func getMainPage() {
-	url = mainPage
+	if numberPage != totalPages {
+		url = "https://api.remanga.org/api/search/catalog/?ordering=-rating&page=" + fmt.Sprintf("%v", numberPage) + "&count=30"
+	}
+	numberPage++
 	parser()
 	for _, item := range textJson["content"].([]interface{}) {
 		rus_names += fmt.Sprintf("%v", item.(map[string]interface{})["rus_name"]) + ","
 		arrayApiTitles = append(arrayApiTitles, "https://api.remanga.org/api/titles/"+fmt.Sprintf("%v", item.(map[string]interface{})["dir"]))
 	}
-	createJson()
-}
-
-func getImages() {
-	// if countRepeatGetImages < len(arrayIdChapters) && Images != "" {
-	// 	countRepeatGetImages++
-	// }
-	url = arrayIdChapters[countRepeatGetImages]
-	parser()
-
-	for key, value := range textJson["content"].(map[string]interface{}) {
+	for key, item := range textJson["props"].(map[string]interface{}) {
 		switch key {
-		case "pages":
-			for key, value := range value.([]interface{}) {
-				switch key {
-				case countPagesImages:
-					countPagesImages++
-					for _, value := range value.([]interface{}) {
-						Images += fmt.Sprintf("%v", value.(map[string]interface{})["link"]) + ","
-					}
-				}
-			}
+		case "total_pages":
+			var i int
+			fmt.Sscanf(fmt.Sprint(item), "%d", &i)
+			totalPages = i
 		}
-	}
-	createJson()
-	countPagesImages = 0
-	if countRepeatGetImages < len(arrayIdChapters) { // index out of range [59] with length 59
-		countRepeatGetImages++
-		defer getImages()
+		createJson()
 	}
 }
-
 func changeUrlApiTitles() {
 	url = arrayApiTitles[counterDescription]
 	parser()
@@ -115,8 +95,47 @@ func changeUrlChapters() {
 	}
 }
 
+func getImages() {
+	url = arrayIdChapters[countRepeatGetImages]
+	parser()
+
+	for key, value := range textJson["content"].(map[string]interface{}) {
+		switch key {
+		case "pages":
+			for key, value := range value.([]interface{}) {
+				switch key {
+				case countPagesImages:
+					countPagesImages++
+					if fmt.Sprintf("%T", value) == "[]interface {}" {
+						for _, value := range value.([]interface{}) {
+							Images += fmt.Sprintf("%v", value.(map[string]interface{})["link"]) + ","
+						}
+					} else {
+						for key, value := range value.(map[string]interface{}) {
+							switch key {
+							case "link":
+								Images += fmt.Sprintf("%v", value) + ","
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	createJson()
+	countPagesImages = 0
+	if countRepeatGetImages < len(arrayIdChapters) {
+		countRepeatGetImages++
+		defer getImages()
+	}
+	if countRepeatGetImages == len(arrayIdChapters) - 1 {
+		countRepeatGetImages = 0
+				url = ""
+				defer main()
+	}
+}
+
 func parser() {
-	// fmt.Println(url)
 	resp, _ := http.Get(url)
 	defer resp.Body.Close()
 
