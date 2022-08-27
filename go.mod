@@ -1,8 +1,7 @@
-module example.com/rhino-scraper
+module Parser
 
-go 1.15
+go 1.19
 
-require (
-	golang.org/x/exp v0.0.0-20220823124025-807a23277127 // indirect
-	golang.org/x/net v0.0.0-20220812174116-3211cb980234 // indirect
-)
+require golang.org/x/net v0.0.0-20220826154423-83b083e8dc8b
+
+require golang.org/x/text v0.3.7 // indirect
