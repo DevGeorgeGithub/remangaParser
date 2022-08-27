@@ -1,4 +1,4 @@
-module Parser
+module github.com/DevGeorgeGithub/Parser
 
 go 1.19
 
